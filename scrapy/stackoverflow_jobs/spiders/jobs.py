@@ -40,6 +40,8 @@ from urllib.request import urlopen
 
  To exceed the minimum requirements I:
      scrape ~400 pages (more if you start at an earlier page)
+
+     use xpath for scraping
      
      goes across multiple pages of the website as
      opposed to gathering links from one static page
@@ -86,20 +88,19 @@ class JobSpider(scrapy.Spider):
     unique_job_listings = set()
 
     def start_requests(self):
-        url = "https://stackoverflow.com/jobs?sort=p&pg=723"
+        url = "https://stackoverflow.com/jobs?sort=p&pg=725"
         yield scrapy.Request(url=url, callback=self.gather_pages)
 
 
     def gather_pages(self, response):
         bs = BeautifulSoup(response.body, 'html.parser')
 
-        mat_icons = bs.find_all(class_='material-icons')
-        #print(response.xpath("//a[@class='s-pagination--item']/").getall())
-        if mat_icons[-1].get_text() == "chevron_right":
-            page_url = self.base_url + mat_icons[-1].parent.get('href')
+        next_button_link = response.xpath("//a[@class='s-pagination--item']/i[text()='chevron_right']//parent::a/@href").get()
+        if next_button_link != None:
+            page_url = self.base_url + next_button_link
         else:
+            print("\n\n\n", "no more pages")
             page_url = None
-
         links = response.xpath("//h2[@class='mb4 fc-black-800 fs-body3']/a/@href").getall()
         self.unique_job_listings.update(links)
 
@@ -114,13 +115,13 @@ class JobSpider(scrapy.Spider):
                 yield scrapy.Request(url=listing_url, callback=self.gather_listing_info)
 
     def gather_listing_info(self, response):
-        listing_info_dict = self.stackoverflow_job_info(response.url)
+        listing_info_dict = self.stackoverflow_job_info(response.url, response)
 
         if listing_info_dict != None:
             self.dict_write.writerow(listing_info_dict)
             yield listing_info_dict
 
-    def stackoverflow_job_info(self, url):
+    def stackoverflow_job_info(self, url, response):
         output = {}
         try:
             with urlopen(url) as fp:
@@ -131,13 +132,19 @@ class JobSpider(scrapy.Spider):
         #company name
         #
         company_name = bs.find(class_='fc-black-700')
-        if company_name.a != None:
-            company_text = company_name.a.get_text().strip()
-            output.update({'company_name':company_text})
-        else:
-            company_text = company_name.text
-            company_text = company_text[:company_text.find('–')].strip().replace('\r', '').replace('\n', '')
-            output.update({'company_name':company_text})
+#        if company_name.a != None:
+#            company_text = company_name.a.get_text().strip()
+#            output.update({'company_name':company_text})
+#        else:
+#            company_text = company_name.text
+#            company_text = company_text[:company_text.find('–')].strip().replace('\r', '').replace('\n', '')
+#            output.update({'company_name':company_text})
+        company_text = response.xpath("//div[@class='fc-black-700 fs-body3']/text()").get().strip().replace('\r', '').replace('\n', '')
+        if company_text == '':
+            company_text = response.xpath("//div[@class='fc-black-700 fs-body3']/a/text()").get().strip().replace('\r', '').replace('\n', '')
+        if company_text == '':
+            company_text = "N/A"
+        output.update({'company_name':company_text})
 
 
         #job type
