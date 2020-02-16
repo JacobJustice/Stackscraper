@@ -50,7 +50,7 @@ from urllib.request import urlopen
      attributes I search for:
          next page url
          all job listing urls on a page
-         job listing data (14 attributes total)
+         job listing data (14 attributes)
      
      filter the value of how many likes/dislikes/hearts
      to be stored as an int
@@ -86,23 +86,22 @@ class JobSpider(scrapy.Spider):
     unique_job_listings = set()
 
     def start_requests(self):
-        url = "https://stackoverflow.com/jobs?sort=p&pg=711"
+        url = "https://stackoverflow.com/jobs?sort=p&pg=723"
         yield scrapy.Request(url=url, callback=self.gather_pages)
+
 
     def gather_pages(self, response):
         bs = BeautifulSoup(response.body, 'html.parser')
 
         mat_icons = bs.find_all(class_='material-icons')
+        #print(response.xpath("//a[@class='s-pagination--item']/").getall())
         if mat_icons[-1].get_text() == "chevron_right":
             page_url = self.base_url + mat_icons[-1].parent.get('href')
         else:
             page_url = None
 
-        links = bs.find_all(class_='mb4 fc-black-800 fs-body3')
-        for link in links:
-            href = link.a.get('href')
-            self.unique_job_listings.add(href)
-            #yield {"href": href}
+        links = response.xpath("//h2[@class='mb4 fc-black-800 fs-body3']/a/@href").getall()
+        self.unique_job_listings.update(links)
 
         print("number of listings",len(self.unique_job_listings))
 
