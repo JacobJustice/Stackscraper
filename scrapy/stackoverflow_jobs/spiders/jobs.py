@@ -4,6 +4,7 @@ from csv import DictWriter
 from urllib.request import urlopen
 
 '''
+
  @author: Jacob Justice
 
  This program automatically scrapes the stackoverflow job listings.
@@ -57,6 +58,11 @@ from urllib.request import urlopen
      to be stored as an int
      
      ensure there are no duplicate job listings stored
+
+ I've set the program to start at page 720 for demonstration purposes. But to have
+ it scrape every listing go to the first line of start_requests and uncomment it,
+ then comment out the next line.
+
 '''
 
 class JobSpider(scrapy.Spider):
@@ -87,7 +93,8 @@ class JobSpider(scrapy.Spider):
     unique_job_listings = set()
 
     def start_requests(self):
-        url = "https://stackoverflow.com/jobs"
+        #url = "https://stackoverflow.com/jobs"
+        url = "https://stackoverflow.com/jobs?sort=p&pg=715"
         yield scrapy.Request(url=url, callback=self.gather_pages)
 
 
