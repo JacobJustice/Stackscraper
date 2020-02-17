@@ -1,6 +1,5 @@
 import scrapy
 from csv import DictWriter
-from bs4 import BeautifulSoup
 
 from urllib.request import urlopen
 
@@ -41,7 +40,7 @@ from urllib.request import urlopen
  To exceed the minimum requirements I:
      scrape ~400 pages (more if you start at an earlier page)
 
-     use xpath for scraping
+     use xpath exclusively for all scraping and crawling
      
      goes across multiple pages of the website as
      opposed to gathering links from one static page
@@ -88,13 +87,11 @@ class JobSpider(scrapy.Spider):
     unique_job_listings = set()
 
     def start_requests(self):
-        url = "https://stackoverflow.com/jobs?sort=p&pg=725"
+        url = "https://stackoverflow.com/jobs"
         yield scrapy.Request(url=url, callback=self.gather_pages)
 
 
     def gather_pages(self, response):
-        bs = BeautifulSoup(response.body, 'html.parser')
-
         next_button_link = response.xpath("//a[@class='s-pagination--item']/i[text()='chevron_right']//parent::a/@href").get()
         if next_button_link != None:
             page_url = self.base_url + next_button_link
@@ -123,29 +120,15 @@ class JobSpider(scrapy.Spider):
 
     def stackoverflow_job_info(self, url, response):
         output = {}
-        try:
-            with urlopen(url) as fp:
-                bs = BeautifulSoup(fp, 'html.parser')
-        except:
-            return None
 
         #company name
         #
-        company_name = bs.find(class_='fc-black-700')
-#        if company_name.a != None:
-#            company_text = company_name.a.get_text().strip()
-#            output.update({'company_name':company_text})
-#        else:
-#            company_text = company_name.text
-#            company_text = company_text[:company_text.find('–')].strip().replace('\r', '').replace('\n', '')
-#            output.update({'company_name':company_text})
         company_text = response.xpath("//div[@class='fc-black-700 fs-body3']/text()").get().strip().replace('\r', '').replace('\n', '')
         if company_text == '':
             company_text = response.xpath("//div[@class='fc-black-700 fs-body3']/a/text()").get().strip().replace('\r', '').replace('\n', '')
         if company_text == '':
             company_text = "N/A"
         output.update({'company_name':company_text})
-
 
         #job type
         #company size
@@ -154,9 +137,7 @@ class JobSpider(scrapy.Spider):
         #industry
         #experience_level
         #
-        items = bs.find(id='overview-items')
-        mb8 = bs.find_all(class_='mb8')
-        mb8_text = [x.get_text() for x in mb8]
+        mb8_text = response.xpath("//div[@id='overview-items']//div[@class='mb8']/span/text()").getall()
 
         job_type = 'N/A'
         company_size = 'N/A'
@@ -165,18 +146,18 @@ class JobSpider(scrapy.Spider):
         industry = 'N/A'
         experience_level = 'N/A'
         for i, text in enumerate(mb8_text):
-            if 'Job type:' in text:
-                job_type = text[len('Job type: '):]
-            elif 'Company size:' in text:
-                company_size = text[len('Company size: '):]
-            elif 'Company type:' in text:
-                company_type = text[len('Company type: '):]
-            elif 'Role:' in text:
-                role = text[len('Role: '):]
-            elif 'Industry:' in text:
-                industry = text[len('Industry: '):]
-            elif 'Experience level:' in text:
-                experience_level = text[len('experience level: '):]
+            if 'Job type: ' == text:
+                job_type = mb8_text[i+1]
+            elif 'Company size: ' == text:
+                company_size = mb8_text[i+1]
+            elif 'Company type: ' == text:
+                company_type = mb8_text[i+1]
+            elif 'Role: ' == text:
+                role = mb8_text[i+1]
+            elif 'Industry: ' == text:
+                industry = mb8_text[i+1]
+            elif 'Experience level: ' == text:
+                experience_level = mb8_text[i+1]
 
         output.update( {'job type' : job_type.strip().replace('\r', '').replace('\n', '')} )
         output.update( {'company_size' : company_size.strip().replace('\r', '').replace('\n', '')} )
@@ -188,40 +169,34 @@ class JobSpider(scrapy.Spider):
 
         #technologies
         #
-        technologies = []
-
-        technologies_tag = None
-        for tag in bs.find_all(class_='fs-subheading mb16'):
-            if tag.get_text() == 'Technologies':
-                technologies_tag = tag
-
-        if technologies_tag != None:
-            for tech in technologies_tag.parent.find_all(class_='post-tag job-link no-tag-menu'):
-                technologies.append(tech.get_text().replace('\r', '').replace('\n', ''))
-
+        technologies = response.xpath("//section[@class='mb32']/div/a[@class='post-tag job-link no-tag-menu']/text()").getall()
         output.update({'technologies' : technologies})
 
         #job title
         #
-        output.update({'job title':bs.find(class_='fc-black-900').get_text().replace('\r', '').replace('\n', '')})
+        output.update({'job title':
+            response.xpath("//a[@class='fc-black-900']/text()").get().replace('\r', '').replace('\n', '')})
 
         #location
         #
-        location = (bs.find(class_='fc-black-500').get_text().strip())
+        location = (response.xpath("//span[@class='fc-black-500']/text()").get().strip())
         location = location[3:].replace('\r', '').replace('\n', '')
         output.update({'location':location})
 
         #likes
         #
-        output.update({"likes":int(bs.select_one('svg.svg-icon.iconThumbsUp').parent.span.get_text())})
+        output.update({"likes":int(
+            response.xpath("//span[@title='Like']/span/text()").get())})
 
         #dislikes
         #
-        output.update({"dislikes":int(bs.select_one('svg.svg-icon.iconThumbsDown').parent.span.get_text())})
+        output.update({"dislikes":int(
+            response.xpath("//span[@title='Dislike']/span/text()").get())})
         
         #hearts
         #
-        output.update({"hearts":int(bs.select_one('svg.svg-icon.iconHeart').parent.span.get_text())})
+        output.update({"hearts":int(
+            response.xpath("//span[@title='Love']/span/text()").get())})
 
         #url
         #
@@ -229,17 +204,13 @@ class JobSpider(scrapy.Spider):
 
         #description
         #
-        mb16list = bs.find_all(class_ = "fs-subheading mb16")
-        for i, tag in enumerate(mb16list):
-            if tag.get_text() == "Job description":
-                section_tag = mb16list[i].parent
         section_text = ""
+        description = response.xpath("//h2[text()='Job description']/..//text()").getall()
 
-        text_only = section_tag.find_all(text=True)
-        del text_only[:2]
+        del description[:2]
 
-        for tag in text_only:
-            section_text += tag.replace('\r', ' ').replace('\n', ' ')
-        output.update({'description':section_text})
+        for tag in description:
+            section_text += tag.replace('\r', ' ').replace('\n', ' ').replace('\xa0', ' ')
+        output.update({'description':section_text.strip()})
 
         return output
