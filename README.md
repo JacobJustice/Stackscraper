@@ -32,8 +32,6 @@ a filtered list of job listings based on some aspect of metadata my web browser 
 # Tools used
 Scrapy
 
-BeautifulSoup
-
 Dictwriter/csv
 
 
