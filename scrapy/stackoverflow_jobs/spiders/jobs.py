@@ -93,8 +93,8 @@ class JobSpider(scrapy.Spider):
     unique_job_listings = set()
 
     def start_requests(self):
-        #url = "https://stackoverflow.com/jobs"
-        url = "https://stackoverflow.com/jobs?sort=p&pg=715"
+        url = "https://stackoverflow.com/jobs"
+        #url = "https://stackoverflow.com/jobs?sort=p&pg=715"
         yield scrapy.Request(url=url, callback=self.gather_pages)
 
 
